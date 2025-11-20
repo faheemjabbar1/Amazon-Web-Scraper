@@ -115,7 +115,7 @@ class AmazonUKScraper:
             await random_delay(1, 2)
 
             try:
-                await self.page.wait_for_selector("#GLUXZipUpdateInput", timeout=5000)
+                await self.page.wait_for_selector("#GLUXZipUpdateInput", timeout=1000)
                 await self.take_screenshot("02_popup_appeared")
                 self.logger.success("Location popup appeared")
             except Exception as e:
@@ -147,7 +147,7 @@ class AmazonUKScraper:
             apply_button_selector = 'input[aria-labelledby="GLUXZipUpdate-announce"]'
 
             try:
-                await self.page.wait_for_selector(apply_button_selector, timeout=5000)
+                await self.page.wait_for_selector(apply_button_selector, timeout=1000)
                 await self.page.click(apply_button_selector)
                 self.logger.success("Clicked Apply button")
                 await random_delay(2, 3)
@@ -168,7 +168,7 @@ class AmazonUKScraper:
 
             for selector in continue_selectors:
                 try:
-                    element = await self.page.wait_for_selector(selector, timeout=3000)
+                    element = await self.page.wait_for_selector(selector, timeout=1000)
                     if element:
                         await element.click()
                         self.logger.success(f"Clicked Continue/Done button: {selector}")
@@ -297,10 +297,10 @@ class AmazonUKScraper:
 
         try:
             # Fast navigation - don't wait for all resources
-            await self.page.goto(url, wait_until="domcontentloaded", timeout=10000)
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=5000)
 
             # Wait for product title to appear (means page is ready)
-            await self.page.wait_for_selector("#productTitle", timeout=8000)
+            await self.page.wait_for_selector("#productTitle", timeout=5000)
 
             self.logger.success("Product page loaded successfully")
 

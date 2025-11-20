@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(python test_single_product.py:*)",
+      "Bash(dir:*)",
+      "Bash(.\\venv\\Scripts\\python.exe:*)",
+      "Bash(set PYTHONIOENCODING=utf-8:*)",
+      "Bash(powershell -Command \"[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; & ''./venv/Scripts/python.exe'' test_single_product.py\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
