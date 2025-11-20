@@ -63,43 +63,109 @@ That's it! You're ready to start scraping.
 
 ## Usage
 
-### Basic Usage
+### Single Product Scraping
+
+#### Basic Usage
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE"
 ```
 
-### Advanced Usage
+#### Advanced Usage
 
-#### Custom Postcode
+##### Custom Postcode
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE" --postcode "SW1A 1AA"
 ```
 
-#### Headless Mode (No visible browser)
+##### Headless Mode (No visible browser)
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE" --headless
 ```
 
-#### Disable Cookie Management
+##### Disable Cookie Management
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE" --no-cookies
 ```
 
-#### Custom Output Filename
+##### Custom Output Filename
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE" --output my_product.json
 ```
 
-#### Custom Config File
+##### Custom Config File
 
 ```bash
 python main.py --url "https://www.amazon.co.uk/dp/B0EXAMPLE" --config my_config.json
 ```
+
+### Batch Product Scraping (Multiple Products)
+
+For scraping multiple products from an Excel file:
+
+#### Step 1: Prepare Your Excel File
+
+Create an Excel file (`.xlsx` or `.xls`) with product URLs in one of these formats:
+
+**Option 1: URLs in a column**
+```
+| URL                                        |
+|--------------------------------------------|
+| https://www.amazon.co.uk/dp/B088W5HWVX    |
+| https://www.amazon.co.uk/dp/B07XYZ1234    |
+| https://www.amazon.co.uk/dp/B08ABC5678    |
+```
+
+**Option 2: ASINs only**
+```
+| ASIN         |
+|--------------|
+| B088W5HWVX   |
+| B07XYZ1234   |
+| B08ABC5678   |
+```
+
+The column name can be "URL", "Link", "ASIN", or any variation. The scraper will automatically detect it.
+
+#### Step 2: Place Excel File
+
+Place your Excel file in the `data/` folder.
+
+#### Step 3: Run Batch Scraper
+
+```bash
+python batch_scraper.py
+```
+
+That's it! The scraper will:
+- Automatically find your Excel file in the `data/` folder
+- Extract all URLs from the file
+- Scrape each product one by one
+- Save progress after each product
+- Generate a consolidated Excel report with all results
+
+#### Batch Scraping Features
+
+- **Automatic Progress Saving**: Results are saved after each product, so if interrupted, you don't lose progress
+- **Detailed Logging**: See real-time progress for each product
+- **Error Handling**: If one product fails, the scraper continues with the next
+- **Summary Report**: Get a complete summary at the end showing success/failure rates
+- **Excel Output**: Results saved to `data/batch_results_YYYYMMDD_HHMMSS.xlsx`
+
+#### Output Format
+
+The batch scraper generates an Excel file with these columns:
+- `product_number`: Sequential number (1, 2, 3...)
+- `url`: Product URL
+- `product_title`: Extracted product title
+- `subscribe_save_price`: Subscribe & Save price
+- `scrape_success`: TRUE/FALSE indicator
+- `timestamp`: When the product was scraped
+- `error`: Error message if scraping failed
 
 ### Command Line Options
 

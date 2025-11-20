@@ -1,28 +1,13 @@
-"""
-Main scraper module for Amazon UK.
-Handles browser automation, location changes, and page navigation.
-"""
-
 from typing import Dict, Any, Optional
 from pathlib import Path
+import asyncio
 from playwright.async_api import async_playwright, Browser, Page, BrowserContext
 from src.utils import Logger, random_delay, save_cookies, load_cookies
 from src.extractor import ProductExtractor
 
 
 class AmazonUKScraper:
-    """
-    Main scraper class for Amazon UK product pages.
-    Handles browser setup, location changes, and data extraction.
-    """
-
     def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the scraper with configuration.
-
-        Args:
-            config: Configuration dictionary containing scraper settings
-        """
         self.config = config
         self.logger = Logger()
         self.browser: Optional[Browser] = None
@@ -50,7 +35,7 @@ class AmazonUKScraper:
 
         # Create context with anti-detection measures
         self.context = await self.browser.new_context(
-            viewport={"width": 1920, "height": 1080},
+            viewport={"width": 1280, "height": 800},
             locale="en-GB",
             timezone_id="Europe/London",
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -70,6 +55,7 @@ class AmazonUKScraper:
                 await self.context.add_cookies(cookies)
 
         self.page = await self.context.new_page()
+
         self.logger.success("Browser initialized successfully")
 
     async def take_screenshot(self, name: str) -> str:
@@ -90,7 +76,7 @@ class AmazonUKScraper:
         self.logger.info(f"Screenshot saved: {filepath}")
         return str(filepath)
 
-    async def change_location_to_uk(self, postcode: str = "SE1 1") -> bool:
+    async def change_location_to_uk(self, postcode: str = "SW5 9FE") -> bool:
         """
         Change Amazon location to UK with specified postcode.
         This is the CRITICAL function that must work reliably.
@@ -116,7 +102,7 @@ class AmazonUKScraper:
             deliver_to_selector = "#nav-global-location-popover-link"
 
             try:
-                await self.page.wait_for_selector(deliver_to_selector, timeout=10000)
+                await self.page.wait_for_selector(deliver_to_selector, timeout=5000)
                 await self.page.click(deliver_to_selector)
                 self.logger.success("Clicked 'Deliver to' button")
             except Exception as e:
@@ -129,7 +115,7 @@ class AmazonUKScraper:
             await random_delay(1, 2)
 
             try:
-                await self.page.wait_for_selector("#GLUXZipUpdateInput", timeout=10000)
+                await self.page.wait_for_selector("#GLUXZipUpdateInput", timeout=5000)
                 await self.take_screenshot("02_popup_appeared")
                 self.logger.success("Location popup appeared")
             except Exception as e:
@@ -241,6 +227,62 @@ class AmazonUKScraper:
             self.logger.error(f"Could not verify location change: {e}")
             return False
 
+    async def _click_subscribe_and_save(self) -> bool:
+        """
+        Attempt to click the Subscribe & Save option if it exists on the page.
+        This is crucial for revealing the Subscribe & Save price.
+
+        Returns:
+            True if clicked successfully, False otherwise
+        """
+        try:
+            self.logger.info("Looking for Subscribe & Save option...")
+
+            # Common selectors for Subscribe & Save button/radio
+            # Try radio buttons first, then labels
+            subscribe_selectors = [
+                # Radio button inputs
+                "#rcxsubsync_dealPrice_feature_div input[type='radio']",
+                "input#rcxsubsRadioButton",
+                "#subscribe-and-save-radio-button",
+                "input[name='submit.addToCart'][value*='subscribe']",
+                # Labels (more reliable for clicking)
+                "#rcxsubsync_dealPrice_feature_div label",
+                "label[for='rcxsubsRadioButton']",
+                "label[for='subscribe-and-save-radio-button']",
+                # Other selectors
+                "[data-action='rc-subscribe-radio-button']",
+                ".rcx-radio__label",
+            ]
+
+            for selector in subscribe_selectors:
+                try:
+                    element = await self.page.wait_for_selector(selector, timeout=1500)
+                    if element:
+                        # Check if it's already selected
+                        if selector.endswith("input[type='radio']") or "RadioButton" in selector:
+                            is_checked = await element.is_checked()
+                            if is_checked:
+                                self.logger.info("Subscribe & Save already selected")
+                                return True
+
+                        # Click the element
+                        await element.click()
+                        self.logger.success(f"✅ Clicked Subscribe & Save option using: {selector}")
+
+                        # Wait for price to update
+                        await asyncio.sleep(0.8)
+                        return True
+                except Exception:
+                    continue
+
+            self.logger.warning("Subscribe & Save option not found (may not be available for this product)")
+            return False
+
+        except Exception as e:
+            self.logger.warning(f"Could not click Subscribe & Save: {e}")
+            return False
+
     async def navigate_to_product(self, url: str) -> bool:
         """
         Navigate to a specific product URL.
@@ -254,20 +296,67 @@ class AmazonUKScraper:
         self.logger.info(f"Navigating to product URL...")
 
         try:
-            await self.page.goto(url, wait_until="domcontentloaded", timeout=60000)
-            await random_delay(2, 4)
+            # Fast navigation - don't wait for all resources
+            await self.page.goto(url, wait_until="domcontentloaded", timeout=10000)
 
-            # Wait for product page to load
-            await self.page.wait_for_selector("#productTitle", timeout=15000)
+            # Wait for product title to appear (means page is ready)
+            await self.page.wait_for_selector("#productTitle", timeout=8000)
 
-            await self.take_screenshot("06_product_page")
             self.logger.success("Product page loaded successfully")
+
+            # CRITICAL: Try to click Subscribe & Save if available
+            # This must happen BEFORE price extraction to get correct S&S price
+            sns_clicked = await self._click_subscribe_and_save()
+
+            if sns_clicked:
+                # Wait longer for price to fully update after clicking
+                # Amazon pages often have delayed price updates
+                await asyncio.sleep(1.2)
+                self.logger.info("Waiting for Subscribe & Save price to update...")
+            else:
+                # Even if S&S not clicked, wait a bit for page to stabilize
+                await asyncio.sleep(0.5)
+
             return True
 
         except Exception as e:
             self.logger.error(f"Failed to navigate to product page: {e}")
-            await self.take_screenshot("error_product_page")
             return False
+
+    async def scrape_product_fast(self, url: str) -> Dict[str, Any]:
+        """
+        Fast method to scrape a product without initializing/closing browser.
+        Used for batch scraping where browser is already initialized.
+
+        Args:
+            url: The Amazon product URL to scrape
+
+        Returns:
+            Dictionary containing scraped product data
+        """
+        try:
+            # Navigate to product page
+            nav_success = await self.navigate_to_product(url)
+
+            if not nav_success:
+                self.logger.error("Failed to navigate to product page")
+                return {
+                    "error": "Failed to navigate to product",
+                    "status": "failed"
+                }
+
+            # Extract product data
+            extractor = ProductExtractor(self.page)
+            product_data = await extractor.extract_all_product_data(url)
+
+            return product_data
+
+        except Exception as e:
+            self.logger.error(f"Critical error during scraping: {e}")
+            return {
+                "error": str(e),
+                "status": "failed"
+            }
 
     async def scrape_product(self, url: str) -> Dict[str, Any]:
         """
@@ -282,17 +371,6 @@ class AmazonUKScraper:
         try:
             # Initialize browser
             await self.initialize_browser()
-
-            # Change location to UK (CRITICAL STEP)
-            postcode = self.config.get("postcode", "SE1 1")
-            location_success = await self.change_location_to_uk(postcode)
-
-            if not location_success:
-                self.logger.error("❌ CRITICAL: Location change failed!")
-                return {
-                    "error": "Location change failed",
-                    "status": "failed"
-                }
 
             # Navigate to product page
             nav_success = await self.navigate_to_product(url)
@@ -317,7 +395,12 @@ class AmazonUKScraper:
 
         except Exception as e:
             self.logger.error(f"Critical error during scraping: {e}")
-            await self.take_screenshot("error_critical")
+            # Only take screenshot if page exists
+            if self.page:
+                try:
+                    await self.take_screenshot("error_critical")
+                except Exception:
+                    pass
             return {
                 "error": str(e),
                 "status": "failed"

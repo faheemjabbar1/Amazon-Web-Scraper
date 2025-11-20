@@ -3,7 +3,7 @@
   "headless": false,
   "use_cookies": true,
   "save_cookies": true,
-  "timeout": 60000,
+  "timeout": 5000,
   "random_delay_min": 2.0,
   "random_delay_max": 4.0,
   "screenshot_on_error": true,

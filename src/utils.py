@@ -152,6 +152,15 @@ def load_cookies(filepath: str = "config/cookies.json") -> Optional[list]:
     except FileNotFoundError:
         Logger.warning(f"Cookie file not found: {filepath}")
         return None
+    except json.JSONDecodeError as e:
+        Logger.error(f"Corrupted cookie file detected: {e}. Deleting and starting fresh.")
+        # Delete the corrupted file
+        try:
+            Path(filepath).unlink()
+            Logger.info(f"Deleted corrupted cookie file: {filepath}")
+        except Exception:
+            pass
+        return None
 
 
 def display_results_table(data: Dict[str, Any]) -> None:
