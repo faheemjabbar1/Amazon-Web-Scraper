@@ -1,0 +1,14 @@
+# Amazon UK Scraper Dependencies
+
+# Web scraping framework
+playwright==1.41.0
+
+# Async support (built-in but documented for clarity)
+# asyncio - Built-in Python library for asynchronous programming
+
+# Additional utilities
+python-dateutil==2.8.2
+tabulate==0.9.0
+
+# Type checking (optional, for development)
+mypy==1.8.0

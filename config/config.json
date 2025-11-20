@@ -1,0 +1,27 @@
+{
+  "postcode": "SE1 1",
+  "headless": false,
+  "use_cookies": true,
+  "save_cookies": true,
+  "timeout": 60000,
+  "random_delay_min": 2.0,
+  "random_delay_max": 4.0,
+  "screenshot_on_error": true,
+  "browser_args": [
+    "--disable-blink-features=AutomationControlled",
+    "--no-sandbox",
+    "--disable-dev-shm-usage"
+  ],
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "locale": "en-GB",
+  "timezone": "Europe/London",
+  "notes": {
+    "postcode": "UK postcode for delivery location (e.g., 'SE1 1', 'SW1A 1AA')",
+    "headless": "Set to true to run browser without visible window",
+    "use_cookies": "Load saved cookies to speed up subsequent runs",
+    "save_cookies": "Save cookies after successful scraping"
+  }
+}
