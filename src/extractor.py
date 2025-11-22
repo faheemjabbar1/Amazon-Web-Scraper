@@ -307,6 +307,128 @@ class ProductExtractor:
                 self.logger.warning(f"Could not click accordion {selector}: {e}")
                 continue
 
+    async def extract_stock_availability(self) -> Dict[str, Any]:
+        """
+        Extract stock availability information from the page.
+
+        Returns:
+            Dictionary containing stock status and quantity information:
+            - status: 'in_stock', 'low_stock', 'out_of_stock', or 'unknown'
+            - quantity: Number of items left (if available)
+            - message: The raw stock message from Amazon
+        """
+        self.logger.info("Extracting stock availability information...")
+
+        stock_info = {
+            "status": "unknown",
+            "quantity": None,
+            "message": None
+        }
+
+        # Multiple selectors for stock availability
+        stock_selectors = [
+            "#availability",
+            "#availability span",
+            ".a-size-medium.a-color-success",
+            ".a-size-medium.a-color-price",
+            "#availability .a-declarative",
+            "#outOfStock",
+            "#availabilityInsideBuyBox_feature_div",
+            ".availability-text",
+        ]
+
+        for selector in stock_selectors:
+            try:
+                element = await self.page.query_selector(selector)
+                if element:
+                    stock_text = await element.inner_text()
+                    stock_text = stock_text.strip()
+
+                    if stock_text:
+                        stock_info["message"] = stock_text
+                        self.logger.info(f"Found stock message: {stock_text}")
+
+                        # Analyze stock text to determine status and quantity
+                        stock_text_lower = stock_text.lower()
+
+                        # Check for out of stock
+                        if any(phrase in stock_text_lower for phrase in [
+                            "currently unavailable",
+                            "out of stock",
+                            "not available",
+                            "temporarily out of stock"
+                        ]):
+                            stock_info["status"] = "out_of_stock"
+                            self.logger.warning("Product is OUT OF STOCK")
+                            break
+
+                        # Check for "Only X left in stock" pattern
+                        import re
+                        only_left_match = re.search(r'only\s+(\d+)\s+left\s+in\s+stock', stock_text_lower)
+                        if only_left_match:
+                            quantity = int(only_left_match.group(1))
+                            stock_info["quantity"] = quantity
+                            stock_info["status"] = "low_stock"
+                            self.logger.success(f"Low stock detected: {quantity} items left")
+                            break
+
+                        # Check for general stock quantity pattern
+                        quantity_match = re.search(r'(\d+)\s+(?:items?|units?)\s+(?:left|in stock|available)', stock_text_lower)
+                        if quantity_match:
+                            quantity = int(quantity_match.group(1))
+                            stock_info["quantity"] = quantity
+                            if quantity <= 10:
+                                stock_info["status"] = "low_stock"
+                            else:
+                                stock_info["status"] = "in_stock"
+                            self.logger.success(f"Stock quantity found: {quantity}")
+                            break
+
+                        # Check for "in stock" messages
+                        if any(phrase in stock_text_lower for phrase in [
+                            "in stock",
+                            "available",
+                            "ships from",
+                            "usually dispatches"
+                        ]):
+                            stock_info["status"] = "in_stock"
+                            self.logger.success("Product is IN STOCK")
+                            break
+
+            except Exception as e:
+                self.logger.warning(f"Error with stock selector {selector}: {e}")
+                continue
+
+        # Additional check: Look for "Add to Basket" button availability
+        if stock_info["status"] == "unknown":
+            try:
+                add_to_basket_selectors = [
+                    "#add-to-cart-button",
+                    "#buy-now-button",
+                    "input[name='submit.add-to-cart']"
+                ]
+
+                for selector in add_to_basket_selectors:
+                    button = await self.page.query_selector(selector)
+                    if button:
+                        is_enabled = await button.is_enabled()
+                        if is_enabled:
+                            stock_info["status"] = "in_stock"
+                            stock_info["message"] = "Add to Basket button available"
+                            self.logger.info("Stock inferred from Add to Basket button availability")
+                            break
+                        else:
+                            stock_info["status"] = "out_of_stock"
+                            stock_info["message"] = "Add to Basket button disabled"
+                            break
+            except Exception as e:
+                self.logger.warning(f"Error checking basket button: {e}")
+
+        if stock_info["status"] == "unknown":
+            self.logger.warning("Could not determine stock availability")
+
+        return stock_info
+
     async def extract_all_product_data(self, url: str) -> Dict[str, Any]:
         """
         Extract all product data from the current page.
@@ -324,6 +446,7 @@ class ProductExtractor:
         # Extract all data
         title = await self.extract_product_title()
         subscribe_save_price = await self.extract_subscribe_save_price()
+        stock_info = await self.extract_stock_availability()
 
         # If Subscribe & Save price not found, get one-time purchase price
         if not subscribe_save_price:
@@ -341,9 +464,12 @@ class ProductExtractor:
             "product_title": title,
             "price": final_price,
             "price_type": price_type,
+            "stock_status": stock_info["status"],
+            "stock_quantity": stock_info["quantity"],
+            "stock_message": stock_info["message"],
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "extraction_status": "success" if title else "partial"
         }
 
-        self.logger.success(f"Product data extraction completed - Price Type: {price_type}")
+        self.logger.success(f"Product data extraction completed - Price Type: {price_type}, Stock: {stock_info['status']}")
         return data

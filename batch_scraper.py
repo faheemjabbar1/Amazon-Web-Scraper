@@ -152,8 +152,9 @@ class BatchScraper:
 
             # Reorder columns for better readability
             column_order = ['product_number', 'url', 'product_title',
-                          'price', 'price_type', 'scrape_success',
-                          'timestamp', 'error', 'extraction_status']
+                          'price', 'price_type', 'stock_status', 'stock_quantity',
+                          'stock_message', 'scrape_success', 'timestamp',
+                          'error', 'extraction_status']
 
             # Only include columns that exist
             column_order = [col for col in column_order if col in df.columns]

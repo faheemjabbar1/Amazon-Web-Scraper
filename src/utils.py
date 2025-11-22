@@ -175,9 +175,44 @@ def display_results_table(data: Dict[str, Any]) -> None:
     print("=" * 80 + "\n")
 
     table_data = []
+
+    # Custom ordering for better readability
+    field_order = [
+        "product_title",
+        "price",
+        "price_type",
+        "stock_status",
+        "stock_quantity",
+        "stock_message",
+        "extraction_status"
+    ]
+
+    # Add ordered fields first
+    for key in field_order:
+        if key in data:
+            value = data[key]
+            display_key = key.replace("_", " ").title()
+
+            # Special formatting for stock status
+            if key == "stock_status":
+                if value == "in_stock":
+                    value = "✅ In Stock"
+                elif value == "low_stock":
+                    value = "⚠️  Low Stock"
+                elif value == "out_of_stock":
+                    value = "❌ Out of Stock"
+                elif value == "unknown":
+                    value = "❓ Unknown"
+
+            # Don't show stock quantity or message if None
+            if key in ["stock_quantity", "stock_message"] and value is None:
+                continue
+
+            table_data.append([display_key, value if value else "N/A"])
+
+    # Add any remaining fields not in the ordered list
     for key, value in data.items():
-        if key != "timestamp" and key != "url":
-            # Format the key for display
+        if key not in field_order and key != "timestamp" and key != "url":
             display_key = key.replace("_", " ").title()
             table_data.append([display_key, value if value else "N/A"])
 

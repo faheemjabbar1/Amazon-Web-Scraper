@@ -283,45 +283,54 @@ class AmazonUKScraper:
             self.logger.warning(f"Could not click Subscribe & Save: {e}")
             return False
 
-    async def navigate_to_product(self, url: str) -> bool:
+    async def navigate_to_product(self, url: str, max_retries: int = 3) -> bool:
         """
-        Navigate to a specific product URL.
+        Navigate to a specific product URL with retry logic.
 
         Args:
             url: The Amazon product URL
+            max_retries: Maximum number of retry attempts
 
         Returns:
             True if navigation successful, False otherwise
         """
         self.logger.info(f"Navigating to product URL...")
 
-        try:
-            # Fast navigation - don't wait for all resources
-            await self.page.goto(url, wait_until="domcontentloaded", timeout=5000)
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Increased timeout to 30 seconds for better reliability
+                await self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
 
-            # Wait for product title to appear (means page is ready)
-            await self.page.wait_for_selector("#productTitle", timeout=5000)
+                # Wait for product title to appear (means page is ready)
+                await self.page.wait_for_selector("#productTitle", timeout=10000)
 
-            self.logger.success("Product page loaded successfully")
+                self.logger.success("Product page loaded successfully")
 
-            # CRITICAL: Try to click Subscribe & Save if available
-            # This must happen BEFORE price extraction to get correct S&S price
-            sns_clicked = await self._click_subscribe_and_save()
+                # CRITICAL: Try to click Subscribe & Save if available
+                # This must happen BEFORE price extraction to get correct S&S price
+                sns_clicked = await self._click_subscribe_and_save()
 
-            if sns_clicked:
-                # Wait longer for price to fully update after clicking
-                # Amazon pages often have delayed price updates
-                await asyncio.sleep(1.2)
-                self.logger.info("Waiting for Subscribe & Save price to update...")
-            else:
-                # Even if S&S not clicked, wait a bit for page to stabilize
-                await asyncio.sleep(0.5)
+                if sns_clicked:
+                    # Wait longer for price to fully update after clicking
+                    # Amazon pages often have delayed price updates
+                    await asyncio.sleep(1.2)
+                    self.logger.info("Waiting for Subscribe & Save price to update...")
+                else:
+                    # Even if S&S not clicked, wait a bit for page to stabilize
+                    await asyncio.sleep(0.5)
 
-            return True
+                return True
 
-        except Exception as e:
-            self.logger.error(f"Failed to navigate to product page: {e}")
-            return False
+            except Exception as e:
+                if attempt < max_retries:
+                    self.logger.warning(f"Navigation attempt {attempt} failed: {e}")
+                    self.logger.info(f"Retrying... (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(2)  # Wait before retry
+                else:
+                    self.logger.error(f"Failed to navigate to product page after {max_retries} attempts: {e}")
+                    return False
+
+        return False
 
     async def scrape_product_fast(self, url: str) -> Dict[str, Any]:
         """
